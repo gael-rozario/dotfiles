@@ -2,7 +2,7 @@ vim.g.mapleader = " "
 
 local keymap = vim.keymap
 
--- keymap.set("n", "<leader>fe", vim.cmd.Ex)
+keymap.set("n", "<leader>fe", vim.cmd.Ex)
 
 keymap.set("n", "<C-d>", "<C-d>zz")
 keymap.set("n", "<C-u>", "<C-u>zz")
@@ -53,5 +53,3 @@ keymap.set("n", "<leader>nh", ":nohl<cr>")
 -- increment and decrement numbers
 keymap.set("n", "<leader>+", "<C-a>")
 keymap.set("n", "<leader>-", "<C-x>")
-
-

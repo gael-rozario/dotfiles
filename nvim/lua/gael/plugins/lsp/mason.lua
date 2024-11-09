@@ -35,6 +35,9 @@ return {
 				"svelte",
 				"graphql",
 				"emmet_ls",
+                "gopls",
+                "terraformls",
+                "groovyls",
 			},
 		})
 
@@ -46,6 +49,8 @@ return {
 				"black",
 				"pylint",
 				"eslint_d",
+				"delve",
+                "goimports-reviser",
 			},
 		})
 	end,

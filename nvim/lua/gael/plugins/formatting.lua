@@ -20,15 +20,16 @@ return {
 				liquid = { "prettier" },
 				lua = { "stylua" },
 				python = { "isort", "black" },
+				go = { "gofmt", "goimports-reviser" },
 			},
-			format_on_save = {
-				lsp_fallback = true,
-				async = false,
-				timeout_ms = 1000,
-			},
+			-- format_on_save = {
+			-- 	lsp_fallback = true,
+			-- 	async = false,
+			-- 	timeout_ms = 1000,
+			-- },
 		})
 
-		vim.keymap.set({ "n", "v" }, "<leader>mp", function()
+		vim.keymap.set({ "n", "v" }, "<leader>pp", function()
 			conform.format({
 				lsp_fallback = true,
 				async = false,
