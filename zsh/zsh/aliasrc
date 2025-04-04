@@ -70,3 +70,4 @@ alias kgd="kubectl get deployments"
 alias ke="kubectl exec -it"
 
 alias cl="clear"
+alias nr='vi $HOME/second-brain/inbox/*.md'

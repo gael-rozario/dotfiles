@@ -21,13 +21,16 @@ eval "$(pyenv virtualenv-init -)"
 
 export PATH=$PATH:/usr/local/go/bin
 export PATH=$PATH:~/.local/bin
+export PATH=$PATH:~/go/bin
 
 source ~/zsh/powerlevel10k/powerlevel10k.zsh-theme
 
 autoload -U history-search-end
-bindkey '^[[A' history-substring-search-up
-bindkey '^[[B' history-substring-search-up
+# bindkey '^[[A' history-substring-search-up
+# bindkey '^[[B' history-substring-search-up
 
+bindkey -v
+export KEYTIMEOUT=1
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
@@ -38,5 +41,15 @@ source ~/zsh/zsh-history-substring-search/zsh-history-substring-search.zsh
 [ -f "$HOME/zsh/aliasrc" ] && source "$HOME/zsh/aliasrc"
 
 eval "$(zoxide init zsh)"
+setxkbmap -option "ctrl:nocaps"
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+
+# Generated for envman. Do not edit.
+[ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
+export PATH="$HOME/.tfenv/bin:$PATH"
