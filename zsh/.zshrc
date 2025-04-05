@@ -17,7 +17,7 @@ export PATH="$PATH:/opt/nvim/bin"
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
+# eval "$(pyenv virtualenv-init -)"
 
 export PATH=$PATH:/usr/local/go/bin
 export PATH=$PATH:~/.local/bin
@@ -41,7 +41,7 @@ source ~/zsh/zsh-history-substring-search/zsh-history-substring-search.zsh
 [ -f "$HOME/zsh/aliasrc" ] && source "$HOME/zsh/aliasrc"
 
 eval "$(zoxide init zsh)"
-setxkbmap -option "ctrl:nocaps"
+# setxkbmap -option "ctrl:nocaps"
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
