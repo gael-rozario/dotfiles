@@ -8,3 +8,5 @@ zoxide
 powerlevel10k
 zsh-syntax-highlighting
 zsh-autosuggestions
+eza
+zoxide
