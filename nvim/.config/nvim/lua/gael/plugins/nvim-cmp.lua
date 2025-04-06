@@ -59,5 +59,15 @@ return {
         }),
       },
     })
+    -- adding for vim-dadbod
+    cmp.setup.filetype({ "sql" }, {
+      sources = {
+        { name = "vim-dadbod-completion" },
+        { name = "nvim_lsp"}, -- nvimlsp
+        { name = "luasnip" }, -- snippets
+        { name = "buffer"}, -- text within current buffer
+        { name = "path" }, -- file system paths
+      },
+    })
   end,
 }
