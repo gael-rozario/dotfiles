@@ -89,3 +89,6 @@ export NVM_DIR="$HOME/.nvm"
 # Generated for envman. Do not edit.
 [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
 export PATH="$HOME/.tfenv/bin:$PATH"
+
+# custom env variables
+source ~/.zsh/export.sh

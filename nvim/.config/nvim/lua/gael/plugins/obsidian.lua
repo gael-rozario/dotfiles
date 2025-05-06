@@ -14,7 +14,7 @@ return {
 			workspaces = {
 				{
 					name = "vault",
-					path = "/home/gael/second-brain",
+					path = "~/second-brain",
 					overrides = {
 						notes_subdir = "inbox",
 					},
