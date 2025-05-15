@@ -56,6 +56,9 @@ keymap.set("n", "C-d>", "<C-d>zz")
 -- clear search highlights
 keymap.set("n", "<leader>nh", ":nohl<cr>")
 
+-- dbui
+keymap.set("n", "<leader>mm", ":DBUI<cr>")
+
 -- increment and decrement numbers
 keymap.set("n", "<leader>+", "<C-a>")
 keymap.set("n", "<leader>-", "<C-x>")
