@@ -20,3 +20,4 @@ require("lazy").setup({ { import = "gael.plugins" },{ import = "gael.plugins.lsp
     notify = false,
   },
 })
+
