@@ -44,7 +44,7 @@
 
 # font-family = "CaskaydiaCove Nerd Font Mono"
 # font-family = "JetBrains Mono Nerd Font"
-font-family = "MesloLGL Nerd Font Mono"
-font-size = 20
+font-family = "JetBrainsMono NF Light"
+font-size = 23
 background-opacity = 0.98
 theme = catppuccin-mocha
