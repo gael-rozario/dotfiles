@@ -58,6 +58,7 @@ keymap.set("n", "<leader>nh", ":nohl<cr>")
 
 -- dbui
 keymap.set("n", "<leader>mm", ":DBUI<cr>")
+keymap.set("n", "<leader>ms", ":set filetype=sql<cr>")
 
 -- increment and decrement numbers
 keymap.set("n", "<leader>+", "<C-a>")
