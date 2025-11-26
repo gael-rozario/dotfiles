@@ -13,6 +13,7 @@ return {
 				svelte = { "prettier" },
 				css = { "prettier" },
 				html = { "prettier" },
+				xml = { "prettier" },
 				json = { "prettier" },
 				yaml = { "prettier" },
 				markdown = { "prettier" },
@@ -21,8 +22,9 @@ return {
 				lua = { "stylua" },
 				python = { "isort", "black" },
 				go = { "gofmt", "goimports-reviser" },
-				hcl = { "hclfmt" },
+				hcl = { "terraform_fmt" },
 				terraform = { "terraform_fmt" },
+				sh = { "shfmt" },
 			},
 			-- format_on_save = {
 			-- 	lsp_fallback = true,

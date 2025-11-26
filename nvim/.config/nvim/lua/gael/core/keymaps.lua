@@ -67,3 +67,6 @@ keymap.set("n", "<leader>-", "<C-x>")
 -- checkbox
 keymap.set('n', '<leader>ty', [[:s/\[\s\]/[x]/<cr>]], { silent = true })
 keymap.set('n', '<leader>tn', [[:s/\[x\]/[ ]/<cr>]], { silent = true })
+
+-- make filetype to groovy
+keymap.set("n", "<leader>pg", ":set filetype=groovy<cr>")
