@@ -16,9 +16,11 @@ SAVEHIST=1000
 HISTFILE=~/.zsh_history
 
 export PATH="$PATH:/opt/nvim/bin"
-export PYENV_ROOT="$HOME/.pyenv"
-[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
+
+#pyenv
+# export PYENV_ROOT="$HOME/.pyenv"
+# [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+# eval "$(pyenv init -)"
 # eval "$(pyenv virtualenv-init -)"
 
 export PATH=$PATH:/usr/local/go/bin
@@ -28,8 +30,6 @@ export PATH=$PATH:~/go/bin
 # source ~/zsh/powerlevel10k/powerlevel10k.zsh-theme
 
 autoload -U history-search-end
-# bindkey '^[[A' history-substring-search-up
-# bindkey '^[[B' history-substring-search-up
 
 bindkey -v
 export KEYTIMEOUT=1
@@ -39,6 +39,9 @@ export KEYTIMEOUT=1
 source ~/zsh/zsh-autosuggestions/zsh-autosuggestions.zsh
 source ~/zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 source ~/zsh/zsh-history-substring-search/zsh-history-substring-search.zsh
+
+bindkey '^[[A' history-substring-search-up
+bindkey '^[[B' history-substring-search-down
 
 [ -f "$HOME/zsh/aliasrc" ] && source "$HOME/zsh/aliasrc"
 
@@ -92,3 +95,5 @@ export PATH="$HOME/.tfenv/bin:$PATH"
 
 # custom env variables
 source ~/.zsh/export.sh
+
+export HSA_OVERRIDE_GFX_VERSION=10.3.0
