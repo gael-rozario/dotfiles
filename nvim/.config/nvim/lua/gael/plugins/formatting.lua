@@ -21,7 +21,7 @@ return {
 				liquid = { "prettier" },
 				lua = { "stylua" },
 				python = { "isort", "black" },
-				go = { "gofmt", "goimports-reviser" },
+				go = { "gofumpt", "golines", "goimports-reviser" },
 				hcl = { "terraform_fmt" },
 				terraform = { "terraform_fmt" },
 				sh = { "shfmt" },
