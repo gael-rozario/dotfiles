@@ -1,0 +1,58 @@
+# Talos Linux has no SSH -- define a do-nothing communicator
+module VagrantPlugins
+  module CommunicatorNone
+    class Communicator < Vagrant.plugin("2", :communicator)
+      def self.match?(machine) = true
+      def ready? = true
+      def wait_for_ready(_timeout) = true
+      def initialize(machine); @machine = machine; end
+    end
+
+    class Config < Vagrant.plugin("2", :config)
+      def validate(_machine) = { "communicator none" => [] }
+    end
+
+    class Plugin < Vagrant.plugin("2")
+      name "none communicator"
+      communicator("none") { Communicator }
+      config("none", :communicator) { Config }
+    end
+  end
+end
+
+Vagrant.configure("2") do |config|
+  config.vm.communicator = :none
+  config.vm.guest = :linux
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+
+  # Talos Linux box (see README below for how to create it)
+  config.vm.box = "talos-linux"
+
+  # Worker 1: small
+  config.vm.define "worker1" do |vm|
+    vm.vm.network "public_network", dev: "br0", mode: "bridge", type: "bridge", mac: "52:54:00:4e:0b:04"
+
+    vm.vm.provider :libvirt do |v|
+      v.uri = "qemu:///system"
+      v.memory = 4096
+      v.cpus   = 4
+      v.cpu_mode = "host-passthrough"
+      v.mgmt_attach = false
+      v.storage :file, size: '10G'
+    end
+  end
+
+  # Worker 2: large
+  config.vm.define "worker2" do |vm|
+    vm.vm.network "public_network", dev: "br0", mode: "bridge", type: "bridge", mac: "52:54:00:07:41:56"
+
+    vm.vm.provider :libvirt do |v|
+      v.uri = "qemu:///system"
+      v.memory = 4096
+      v.cpus   = 4
+      v.cpu_mode = "host-passthrough"
+      v.mgmt_attach = false
+      v.storage :file, size: '20G'
+    end
+  end
+end
