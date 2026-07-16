@@ -13,8 +13,15 @@ return {
 		require("obsidian").setup({
 			workspaces = {
 				{
-					name = "vault",
-					path = "~/second-brain",
+					name = "personal",
+					path = "~/gbrain/second-brain",
+					overrides = {
+						notes_subdir = "inbox",
+					},
+				},
+				{
+					name = "work",
+					path = "~/gbrain/third-brain",
 					overrides = {
 						notes_subdir = "inbox",
 					},

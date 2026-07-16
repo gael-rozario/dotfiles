@@ -59,25 +59,14 @@ return {
         }),
       },
     })
-    -- adding for vim-dadbod
-    cmp.setup.filetype({ "sql" }, {
-      sources = {
+
+    -- Set up vim-dadbod-completion for SQL filetypes
+    cmp.setup.filetype({ "sql", "mysql", "plsql" }, {
+      sources = cmp.config.sources({
         { name = "vim-dadbod-completion" },
-        { name = "nvim_lsp"}, -- nvimlsp
-        { name = "luasnip" }, -- snippets
-        { name = "buffer"}, -- text within current buffer
-        { name = "path" }, -- file system paths
-      },
-    })
-    -- adding for vim-dadbod extra
-    cmp.setup.filetype({ "mysql" }, {
-      sources = {
-        { name = "vim-dadbod-completion" },
-        { name = "nvim_lsp"}, -- nvimlsp
-        { name = "luasnip" }, -- snippets
-        { name = "buffer"}, -- text within current buffer
-        { name = "path" }, -- file system paths
-      },
+        { name = "buffer" },
+        { name = "luasnip" },
+      }),
     })
   end,
 }

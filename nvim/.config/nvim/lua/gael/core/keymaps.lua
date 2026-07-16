@@ -70,3 +70,16 @@ keymap.set('n', '<leader>tn', [[:s/\[x\]/[ ]/<cr>]], { silent = true })
 
 -- make filetype to groovy
 keymap.set("n", "<leader>pg", ":set filetype=groovy<cr>")
+
+-- sort lines
+keymap.set("n", "<leader>gs", ":sort<cr>", { desc = "Sort lines in file" })
+keymap.set("v", "<leader>gs", ":sort<cr>", { desc = "Sort selected lines" })
+
+-- toggle diff across all open windows
+keymap.set("n", "<leader>gd", function()
+  if vim.o.diff then
+    vim.cmd("windo diffoff")
+  else
+    vim.cmd("windo diffthis")
+  end
+end, { desc = "Toggle diff all windows" })

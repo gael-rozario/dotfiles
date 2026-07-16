@@ -11,7 +11,14 @@ return {
 			typescriptreact = { "eslint_d" },
 			svelte = { "eslint_d" },
 			python = { "pylint" },
+			terraform = { "terraform_validate" },
+			hcl = { "terraform_validate" },
 		}
+
+		-- Configure pylint to use specific Python binary from nvim venv
+		-- This ensures pylint uses the same Python environment as pyright
+		local pylint = lint.linters.pylint
+		pylint.cmd = vim.env.HOME .. "/venv/nvim/bin/pylint"
 
 		local lint_augroup = vim.api.nvim_create_augroup("lint", { clear = true })
 
