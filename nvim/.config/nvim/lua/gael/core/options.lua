@@ -35,3 +35,14 @@ opt.isfname:append("@-@")
 
 opt.updatetime = 50
 opt.conceallevel = 1
+
+-- render-markdown.nvim needs conceallevel = 2 to render its bullet/checkbox
+-- icon overlays; at 1 the concealed markers just vanish with no icon shown.
+vim.api.nvim_create_autocmd("FileType", {
+	pattern = "markdown",
+	group = vim.api.nvim_create_augroup("gael_markdown_conceal", { clear = true }),
+	callback = function()
+		vim.opt_local.conceallevel = 2
+		vim.opt_local.concealcursor = "nc"
+	end,
+})

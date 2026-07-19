@@ -11,7 +11,17 @@ return {
 			typescriptreact = { "eslint_d" },
 			svelte = { "eslint_d" },
 			python = { "pylint" },
+			["yaml.github"] = { "actionlint" },
 		}
+
+		vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
+			pattern = { "*.yml", "*.yaml" },
+			callback = function()
+				if vim.fn.expand("%:p"):match("%.github/workflows/") then
+					vim.bo.filetype = "yaml.github"
+				end
+			end,
+		})
 
 		local lint_augroup = vim.api.nvim_create_augroup("lint", { clear = true })
 

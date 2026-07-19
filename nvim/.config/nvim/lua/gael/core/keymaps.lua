@@ -2,7 +2,8 @@ vim.g.mapleader = " "
 
 local keymap = vim.keymap
 
-keymap.set("n", "<leader>fe", vim.cmd.Ex)
+-- keymap.set("n", "<leader>fe", vim.cmd.Ex)
+keymap.set("n", "<leader>fe", "<CMD>Oil<CR>", { desc = "Open parent directory" })
 
 keymap.set("n", "<C-d>", "<C-d>zz")
 keymap.set("n", "<C-u>", "<C-u>zz")
@@ -70,3 +71,10 @@ keymap.set('n', '<leader>tn', [[:s/\[x\]/[ ]/<cr>]], { silent = true })
 
 -- make filetype to groovy
 keymap.set("n", "<leader>pg", ":set filetype=groovy<cr>")
+-- refresh git
+keymap.set('n', '<leader>gr', function()
+  vim.cmd('checktime')
+  vim.cmd('LspRestart') -- Restarts LSP to clear stale branch data
+  print("Buffers and LSP refreshed!")
+end, { desc = 'Hard refresh buffers and LSP' })
+
