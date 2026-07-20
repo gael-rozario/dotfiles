@@ -14,14 +14,14 @@ return {
 			workspaces = {
 				{
 					name = "personal",
-					path = "~/gbrain/second-brain",
+					path = "~/workspace/github.com/gael-rozario/second-brain",
 					overrides = {
 						notes_subdir = "inbox",
 					},
 				},
 				{
 					name = "work",
-					path = "~/gbrain/third-brain",
+					path = "~/workspace/github.com/gael-rozario/third-brain",
 					overrides = {
 						notes_subdir = "inbox",
 					},

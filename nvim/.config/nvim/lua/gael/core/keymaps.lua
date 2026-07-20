@@ -2,7 +2,7 @@ vim.g.mapleader = " "
 
 local keymap = vim.keymap
 
-keymap.set("n", "<leader>fe", vim.cmd.Ex)
+keymap.set("n", "<leader>fe", "<CMD>Oil<cr>", { desc = "Open parent dir" })
 
 keymap.set("n", "<C-d>", "<C-d>zz")
 keymap.set("n", "<C-u>", "<C-u>zz")

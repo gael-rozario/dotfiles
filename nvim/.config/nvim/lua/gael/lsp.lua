@@ -13,8 +13,21 @@ vim.api.nvim_create_autocmd("LspAttach", {
     opts.desc = "Go to declaration"
     keymap.set("n", "gD", vim.lsp.buf.declaration, opts) -- go to declaration
 
-    opts.desc = "Show LSP definition"
-    keymap.set("n", "gd", vim.lsp.buf.definition, opts) -- show lsp definition
+    -- In markdown buffers, follow an obsidian link if the cursor is on one,
+    -- otherwise fall back to LSP go-to-definition.
+    if vim.bo[ev.buf].filetype == "markdown" then
+      opts.desc = "Follow link or LSP definition"
+      keymap.set("n", "gd", function()
+        if require("obsidian").util.cursor_on_markdown_link() then
+          vim.cmd("ObsidianFollowLink")
+        else
+          vim.lsp.buf.definition()
+        end
+      end, opts)
+    else
+      opts.desc = "Show LSP definition"
+      keymap.set("n", "gd", vim.lsp.buf.definition, opts) -- show lsp definition
+    end
 
     opts.desc = "Show LSP implementations"
     keymap.set("n", "gi", "<cmd>Telescope lsp_implementations<CR>", opts) -- show lsp implementations
