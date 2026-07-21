@@ -13,13 +13,6 @@ return {
 		require("obsidian").setup({
 			workspaces = {
 				{
-					name = "personal",
-					path = "~/workspace/github.com/gael-rozario/second-brain",
-					overrides = {
-						notes_subdir = "inbox",
-					},
-				},
-				{
 					name = "work",
 					path = "~/workspace/github.com/gael-rozario/third-brain",
 					overrides = {
