@@ -1,0 +1,280 @@
+#!/usr/bin/env bash
+# sb-review — interactive inbox review for the second-brain vault (OKF/PARA).
+# Walks 0_inbox/, previews each note, asks save/discard/keep/edit, and files
+# saved notes: type from index.md's note types (asked if unset), folder
+# suggested from where notes of that type/hubs already live.
+# Discards go to .trash/ (reversible). Filing regenerates the affected
+# index.md files via sb-index.
+# Vault: $SB_VAULT (default: ~/gbrain/second-brain)
+set -uo pipefail
+
+VAULT="${SB_VAULT:-$HOME/gbrain/second-brain}"
+INBOX="$VAULT/0_inbox"
+TRASH="$VAULT/.trash"
+[[ -d $INBOX ]] || { echo "sb-review: inbox not found: $INBOX" >&2; exit 1; }
+mkdir -p "$TRASH"
+
+field() {
+  awk -v k="$2" '/^---$/{c++; next} c==1 && $0 ~ "^"k": "{sub("^"k": ",""); print; exit} c>1{exit}' "$1"
+}
+
+declare -a TYPE_LIST=()
+declare -A TYPE_DESC=()
+
+# load_types — read the note-type vocabulary (type + kind-of-content columns)
+# from the table under this vault's own index.md '## Ingestion workflow …'
+# heading. Never hardcode it: the taxonomy evolves, and different vaults
+# (second-brain vs third-brain) use different ones. Types carry no
+# destination — where a note is filed decides its PARA category.
+load_types() {
+  local idx="$VAULT/index.md" found=0 line c
+  local -a header=() cells=() trimmed=()
+  [[ -f $idx ]] || { echo "${0##*/}: $idx not found" >&2; exit 1; }
+  local type_idx=-1 desc_idx=-1 i
+  while IFS= read -r line; do
+    if [[ $found -eq 0 ]]; then
+      shopt -s nocasematch
+      [[ $line =~ ^#{1,6}[[:space:]]*Ingestion[[:space:]]+workflow ]] && found=1
+      shopt -u nocasematch
+      continue
+    fi
+    [[ $line =~ ^#+ ]] && break
+    [[ $line =~ ^\|(.+)\|[[:space:]]*$ ]] || continue
+    IFS='|' read -ra cells <<<"${BASH_REMATCH[1]}"
+    trimmed=()
+    local all_sep=1
+    for c in "${cells[@]}"; do
+      c="${c#"${c%%[![:space:]]*}"}"; c="${c%"${c##*[![:space:]]}"}"; c="${c//\`/}"
+      trimmed+=("$c")
+      [[ $c =~ ^:?-{2,}:?$ ]] || all_sep=0
+    done
+    [[ $all_sep -eq 1 ]] && continue
+    if [[ ${#header[@]} -eq 0 ]]; then
+      for i in "${!trimmed[@]}"; do
+        header+=("${trimmed[$i],,}")
+        [[ ${trimmed[$i],,} == type ]] && type_idx=$i || { [[ $desc_idx -lt 0 ]] && desc_idx=$i; }
+      done
+      continue
+    fi
+    [[ $type_idx -ge 0 && -n ${trimmed[$type_idx]} ]] || continue
+    TYPE_LIST+=("${trimmed[$type_idx]}")
+    [[ $desc_idx -ge 0 ]] && TYPE_DESC["${trimmed[$type_idx]}"]="${trimmed[$desc_idx]}"
+  done < "$idx"
+  [[ ${#TYPE_LIST[@]} -gt 0 ]] || { echo "${0##*/}: no note types found in $idx" >&2; exit 1; }
+  for c in "${TYPE_LIST[@]}"; do TYPE_DESC["$c"]="${TYPE_DESC[$c]:-}"; done
+}
+load_types
+
+strip_status() { # remove 'status: unprocessed' from frontmatter
+  awk '/^---$/{c++} !(c==1 && /^status: unprocessed$/)' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+}
+
+ensure_timestamp() { # ensure_timestamp <file> <YYYY-MM-DD> — add timestamp: if missing
+  [[ -n $(field "$1" timestamp) ]] && return
+  awk -v ts="timestamp: '$2T00:00:00Z'" '/^---$/{c++; if(c==2){print ts}} {print}' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+  echo "  added timestamp from filename date: $2"
+}
+
+ensure_hubs() { # create stubs in 3_resources/hubs/ for any hub the note references
+  local f=$1 hub
+  while IFS= read -r hub; do
+    [[ -n $hub && ! -f $VAULT/3_resources/hubs/$hub.md ]] || continue
+    cat > "$VAULT/3_resources/hubs/$hub.md" <<EOF
+---
+type: Hub
+description: Hub for notes about $hub.
+---
+
+# $hub
+EOF
+    echo "  created missing hub: 3_resources/hubs/$hub.md"
+  done < <(awk '/^---$/{c++; next} c==1 && inhubs && /^[a-zA-Z_]+:/{inhubs=0}
+               c==1 && inhubs && /^ *-/{print}
+               c==1 && /^hubs:/{inhubs=1} c>1{exit}' "$f" \
+           | sed -n "s/.*\[\[\(.*\)\]\].*/\1/p")
+}
+
+set_type() { # set_type <file> <type> — replace (or add) the frontmatter type: line
+  awk -v t="type: $2" '/^---$/{c++; if(c==2 && !done){print t; done=1}}
+                       c==1 && /^type:/{if(!done){print t; done=1}; next} {print}' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+}
+
+note_hubs() { # note_hubs <file> — one hub name per line
+  awk '/^---$/{c++; next} c==1 && inhubs && /^[a-zA-Z_]+:/{inhubs=0}
+       c==1 && inhubs && /^ *-/{print} c==1 && /^hubs:/{inhubs=1; print} c>1{exit}' "$1" \
+    | grep -o '\[\[[^]]*\]\]' | sed 's/^\[\[//; s/\]\]$//' | grep -v '^$' || true
+}
+
+pick_type() { # pick_type <current> — prints the chosen type (menu from index.md)
+  local cur=$1 i ans t
+  {
+    [[ -n $cur ]] && echo "  type '$cur' is not in index.md's note types" || echo "  type not set"
+    for i in "${!TYPE_LIST[@]}"; do
+      printf '  %2d) %-14s %s\n' $((i+1)) "${TYPE_LIST[$i]}" "${TYPE_DESC[${TYPE_LIST[$i]}]}"
+    done
+  } >&2
+  while true; do
+    read -rp "  type (number or name) > " ans || return 1
+    if [[ $ans =~ ^[0-9]+$ ]] && (( ans >= 1 && ans <= ${#TYPE_LIST[@]} )); then
+      echo "${TYPE_LIST[$((ans-1))]}"; return
+    fi
+    for t in "${TYPE_LIST[@]}"; do
+      [[ ${t,,} == "${ans,,}" ]] && { echo "$t"; return; }
+    done
+    echo "  ? pick 1-${#TYPE_LIST[@]} or a type name" >&2
+  done
+}
+
+# suggest_dirs <type> <hub>... — folders ranked by how many notes there share
+# any hub (x2, the stronger signal) or the type (x1); prints "score<TAB>dir<TAB>reason", best first
+suggest_dirs() {
+  local type=$1; shift
+  find "$VAULT/1_projects" "$VAULT/2_areas" "$VAULT/3_resources" -type f -name '*.md' \
+      ! -name index.md ! -path '*/3_resources/hubs/*' -print0 2>/dev/null \
+    | xargs -0 -r awk -v vault="$VAULT/" -v want="$type" -v hubs="$*" '
+        BEGIN { n = split(hubs, h, " "); for (i = 1; i <= n; i++) H[h[i]] = 1 }
+        FNR == 1 { c = 0; inh = 0; shared = 0; d = substr(FILENAME, length(vault) + 1); sub(/\/[^\/]*$/, "", d) }
+        /^---$/ { c++; if (c == 2 && shared) S[d]++; next }
+        c == 1 && /^type:/ { t = $0; sub(/^type: */, "", t); if (t == want) T[d]++ }
+        c == 1 && inh && /^[a-zA-Z_]+:/ { inh = 0 }
+        c == 1 && /^hubs:/ { inh = 1 }
+        c == 1 && inh { s = $0; while (match(s, /\[\[[^]]*\]\]/)) { x = substr(s, RSTART + 2, RLENGTH - 4); if (x in H) shared = 1; s = substr(s, RSTART + RLENGTH) } }
+        END {
+          for (d in T) D[d] = 1; for (d in S) D[d] = 1
+          for (d in D) {
+            why = ""
+            if (T[d]) why = T[d] " " want
+            if (S[d]) why = why (why ? ", " : "") S[d] " share a hub"
+            printf "%d\t%s\t%s\n", T[d] + 2 * S[d], d, why
+          }
+        }' | sort -t$'\t' -k1,1nr -k2,2 | head -5
+}
+
+pick_dest() { # pick_dest <type> <file> — prints the chosen destination dir (vault-relative)
+  local type=$1 f=$2 ans i d why
+  local -a dirs=() whys=() hubs=()
+  if [[ $type == Hub ]]; then echo "3_resources/hubs"; return; fi
+  mapfile -t hubs < <(note_hubs "$f")
+  while IFS=$'\t' read -r _ d why; do dirs+=("$d"); whys+=("$why"); done < <(suggest_dirs "$type" "${hubs[@]}")
+  if [[ ${#dirs[@]} -eq 0 ]]; then
+    dirs=(1_projects 2_areas 3_resources); whys=("" "" "")
+  fi
+  {
+    echo "  destination for $type${hubs[*]:+ [${hubs[*]}]}:"
+    for i in "${!dirs[@]}"; do
+      printf '  %2d) %-40s %s\n' $((i+1)) "${dirs[$i]}" "${whys[$i]:+← ${whys[$i]}}"
+    done
+    echo "   n) other path / new folder"
+  } >&2
+  while true; do
+    read -rp "  destination [1] > " ans || return 1
+    [[ -z $ans ]] && ans=1
+    if [[ $ans =~ ^[0-9]+$ ]] && (( ans >= 1 && ans <= ${#dirs[@]} )); then
+      echo "${dirs[$((ans-1))]}"; return
+    fi
+    if [[ ${ans,,} == n ]]; then
+      read -rp "  path (e.g. 1_projects/new-project) > " ans || return 1
+    fi
+    ans=${ans#/}; ans=${ans%/}
+    if [[ $ans == *..* || ! $ans =~ ^(1_projects|2_areas|3_resources)(/|$) ]]; then
+      echo "  ? pick a number, or a path under 1_projects/, 2_areas/ or 3_resources/ (archive with sb-archive)" >&2
+      continue
+    fi
+    echo "$ans"; return
+  done
+}
+
+preview() {
+  local f=$1
+  echo "──────────────────────────────────────────────────"
+  echo "FILE: ${f#"$VAULT"/}"
+  echo "──────────────────────────────────────────────────"
+  awk '/^---$/{c++; print; next} c==1{print} c>=2{body++; if(body<=20) print; if(body==21){print "  [...truncated...]"; exit}}' "$f"
+  echo "──────────────────────────────────────────────────"
+}
+
+reviewed=0 saved=0 discarded=0 kept=0
+shopt -s nullglob
+for f in "$INBOX"/*.md; do
+  [[ $(basename "$f") == index.md ]] && continue
+  while true; do
+    preview "$f"
+    read -rp "[s]ave  [t]ype  [d]iscard  [k]eep in inbox  [e]dit  [q]uit > " ans || {
+      echo; echo "sb-review: input closed, stopping."
+      sb-index "$INBOX"; exit 130
+    }
+    case ${ans,,} in
+      e)
+        ${EDITOR:-vi} "$f"
+        continue ;;  # re-preview after editing
+      d)
+        mv "$f" "$TRASH/"
+        discarded=$((discarded+1)); reviewed=$((reviewed+1))
+        break ;;
+      k)
+        kept=$((kept+1)); reviewed=$((reviewed+1))
+        break ;;
+      t)
+        if [[ $(head -1 "$f") != --- ]]; then echo "  no frontmatter — [e]dit and add it first"; continue; fi
+        type=$(pick_type "$(field "$f" type)") || continue
+        set_type "$f" "$type"
+        continue ;;
+      s)
+        if [[ $(head -1 "$f") != --- ]]; then echo "  no frontmatter — [e]dit and add it first"; continue; fi
+        type=$(field "$f" type)
+        if [[ -z $type || -z ${TYPE_DESC[$type]+set} ]]; then
+          type=$(pick_type "$type") || continue
+          set_type "$f" "$type"
+        fi
+        # type says what the note is; the folder it's filed in decides its
+        # PARA category — suggested from where similar notes already live
+        dest_rel=$(pick_dest "$type" "$f") || continue
+        ensure_hubs "$f"
+        # The date lives in timestamp:, not the filename. nn captures are
+        # already bare-named; okf-mcp's create_note still adds a YYYY-MM-DD_
+        # prefix, so strip that (backfilling timestamp: from it if missing).
+        destname=$(basename "$f")
+        if [[ $destname =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})_(.+)$ ]]; then
+          ensure_timestamp "$f" "${BASH_REMATCH[1]}"
+          destname="${BASH_REMATCH[2]}"
+        fi
+        # DailyLog notes are named by their date alone, taken from timestamp:
+        if [[ $type == DailyLog ]]; then
+          ts=$(field "$f" timestamp); ts=${ts//[\'\"]/}
+          if [[ ! $ts =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2} ]]; then
+            echo "  DailyLog needs a timestamp: to name the file — [e]dit and add one"; continue
+          fi
+          destname="${ts:0:10}.md"
+        fi
+        if [[ -e "$VAULT/$dest_rel/$destname" ]]; then
+          echo "  '$dest_rel/$destname' already exists — rename this note or keep it in the inbox"
+          continue
+        fi
+        if ! sb-lint "$f"; then
+          read -rp "  lint errors above — file anyway? [y/N] " force
+          [[ ${force,,} == y ]] || continue
+        fi
+        mkdir -p "$VAULT/$dest_rel"
+        strip_status "$f"
+        mv "$f" "$VAULT/$dest_rel/$destname"
+        moved="$VAULT/$dest_rel/$destname"
+        sb-index "$VAULT/$dest_rel"
+        # refresh the parent listing too — except 3_resources/index.md, which
+        # is hand-written with per-folder descriptions
+        parent_rel=$(dirname "$dest_rel")
+        [[ $parent_rel != . && $parent_rel != 3_resources ]] && sb-index "$VAULT/$parent_rel"
+        echo "  filed -> $dest_rel/"
+        saved=$((saved+1)); reviewed=$((reviewed+1))
+        break ;;
+      q)
+        echo "sb-review: stopped. $reviewed reviewed ($saved saved, $discarded discarded, $kept kept)."
+        sb-index "$INBOX"
+        exit 0 ;;
+      *)
+        echo "  ? s/t/d/k/e/q" ;;
+    esac
+  done
+done
+
+sb-index "$INBOX"
+echo "sb-review: done. $reviewed reviewed ($saved saved, $discarded discarded, $kept kept)."

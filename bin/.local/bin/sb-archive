@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# sb-archive — move a finished/inactive second-brain note into 4_archive/,
+# mirroring its original path (1_projects/anaerobic/x.md ->
+# 4_archive/1_projects/anaerobic/x.md). Frontmatter is left untouched; the
+# PARA category becomes Archive because of where the note now sits.
+# Rewrites links to the note across the vault and regenerates the affected
+# index.md files via sb-index.
+# Usage: sb-archive [-n] <note.md> [<note.md>...]   (-n = dry run)
+# Vault: $SB_VAULT (default: ~/gbrain/second-brain)
+set -euo pipefail
+
+VAULT="${SB_VAULT:-$HOME/gbrain/second-brain}"
+[[ -d $VAULT ]] || { echo "sb-archive: vault not found: $VAULT" >&2; exit 1; }
+
+dry=0
+[[ ${1:-} == -n ]] && { dry=1; shift; }
+[[ $# -ge 1 ]] || { echo "usage: sb-archive [-n] <note.md> [<note.md>...]" >&2; exit 2; }
+
+# rewrite_links <old_rel> <new_rel> — root-relative links anywhere in the
+# vault, plus same-folder relative links from the note's old neighbours
+rewrite_links() {
+  local old=$1 new=$2 old_dir f
+  old_dir=$(dirname "$old")
+  while IFS= read -r -d '' f; do
+    OLD="$old" NEW="$new" perl -0pi -e 's/\]\(\/\Q$ENV{OLD}\E\)/](\/$ENV{NEW})/g; s/\[\/\Q$ENV{OLD}\E\]/[\/$ENV{NEW}]/g' "$f"
+  done < <(grep -rlZF --include='*.md' --exclude-dir=.git --exclude-dir=.trash "/$old" "$VAULT" || true)
+  local base; base=$(basename "$old")
+  while IFS= read -r -d '' f; do
+    [[ $(basename "$f") == index.md ]] && continue  # regenerated below
+    OLD="$base" NEW="$new" perl -0pi -e 's/\]\(\Q$ENV{OLD}\E\)/](\/$ENV{NEW})/g' "$f"
+  done < <(grep -lZF "]($base)" "$VAULT/$old_dir"/*.md 2>/dev/null || true)
+}
+
+for arg in "$@"; do
+  f=$(realpath -m "$arg")
+  [[ $arg == /* || -e $f ]] || f=$(realpath -m "$VAULT/$arg")
+  rel=${f#"$VAULT"/}
+  if [[ ! -f $f || $rel == "$f" ]]; then
+    echo "sb-archive: not a note in the vault: $arg" >&2; exit 1
+  fi
+  if [[ ! $rel =~ ^(1_projects|2_areas|3_resources)/.+\.md$ || $(basename "$rel") == index.md ]]; then
+    echo "sb-archive: only notes under 1_projects/, 2_areas/ or 3_resources/ can be archived: $rel" >&2; exit 1
+  fi
+  if [[ $rel == 3_resources/hubs/* ]]; then
+    echo "sb-archive: hubs are link targets for other notes — not archiving $rel" >&2; exit 1
+  fi
+  dest="4_archive/$rel"
+  if [[ -e $VAULT/$dest ]]; then
+    echo "sb-archive: $dest already exists" >&2; exit 1
+  fi
+
+  refs=$(grep -rlF --include='*.md' --exclude-dir=.git --exclude-dir=.trash "/$rel" "$VAULT" | grep -v "^$f$" | wc -l || true)
+  if [[ $dry -eq 1 ]]; then
+    echo "would move: $rel -> $dest  ($refs file(s) link to it)"
+    continue
+  fi
+
+  mkdir -p "$VAULT/$(dirname "$dest")"
+  mv "$f" "$VAULT/$dest"
+  rewrite_links "$rel" "$dest"
+  name=$(basename "$rel" .md)
+
+  # re-index the folder it left and every archive folder above it
+  # (4_archive/index.md itself is hand-written)
+  sb-index "$VAULT/$(dirname "$rel")" >/dev/null
+  d=$(dirname "$dest")
+  while [[ $d != 4_archive && $d != . ]]; do
+    sb-index "$VAULT/$d" >/dev/null
+    d=$(dirname "$d")
+  done
+  echo "archived: $rel -> $dest"
+  sb-lint "$VAULT/$dest" | tail -1
+done

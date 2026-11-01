@@ -1,0 +1,38 @@
+#!/bin/zsh
+# nn — capture a new note into the second-brain inbox and open it in nvim.
+# Usage: nn "the wonderful thing about triggers"
+# Creates 0_inbox/the-wonderful-thing-about-triggers.md from Templates/note
+# ({{title}}/{{date}} filled in). The filename carries no date — the note's
+# date is its timestamp:. The inbox name is the final name: sb-review files
+# it as-is (asking for the type if still empty). Re-running with a title
+# that's already in the inbox reopens that note instead of overwriting it.
+# Vault: $SB_VAULT (default: ~/gbrain/second-brain)
+
+VAULT="${SB_VAULT:-$HOME/gbrain/second-brain}"
+template="$VAULT/Templates/note"
+
+if [ -z "$1" ]; then
+    echo "Error: A file name must be set, e.g. nn \"the wonderful thing about triggers\"."
+    exit 1
+fi
+
+title="$*"
+# spaces -> hyphens; '/' would create a subdirectory and '|' '\' break links, so those too
+file_name=$(print -r -- "$title" | tr ' /|\\' '----')
+today=$(date "+%Y-%m-%d")
+note="$VAULT/0_inbox/${file_name}.md"
+case "$file_name" in
+    index|log) echo "Error: '$file_name' is reserved for the vault's own $file_name.md — pick another title." >&2; exit 1 ;;
+esac
+
+if [ ! -e "$note" ]; then
+    if [ ! -f "$template" ]; then
+        echo "Error: template not found: $template" >&2
+        exit 1
+    fi
+    # escape sed replacement metacharacters in the title
+    safe_title=$(print -r -- "$title" | sed 's/[\\&|]/\\&/g')
+    sed -e "s|{{title}}|$safe_title|g" -e "s|{{date}}|$today|g" "$template" > "$note" || exit 1
+fi
+
+nvim "$note"
