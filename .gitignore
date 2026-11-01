@@ -1,1 +1,6 @@
 **/lazy-lock.json
+
+# secrets: never commit
+.lab.key
+.llm.key
+*.key
