@@ -95,14 +95,15 @@ description = "Rename tab to current dir"
 [[keys.command]]
 key = "prefix+g"
 type = "shell"
-command = "cd \"${HERDR_ACTIVE_PANE_CWD:-$PWD}\"; open \"https://github.com/GridX/$(basename \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\")\""
+command = "cd \"${HERDR_ACTIVE_PANE_CWD:-$PWD}\"; $(command -v open || echo xdg-open) \"https://github.com/GridX/$(basename \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\")\""
 description = "Open GitHub repo"
 
-# Copy the active pane's working directory to the macOS clipboard (no trailing newline).
+# Copy the active pane's working directory to the clipboard (no trailing newline).
+# pbcopy on macOS, xclip on Linux.
 [[keys.command]]
 key = "prefix+y"
 type = "shell"
-command = "printf '%s' \"${HERDR_ACTIVE_PANE_CWD:-$PWD}\" | pbcopy"
+command = "printf '%s' \"${HERDR_ACTIVE_PANE_CWD:-$PWD}\" | if command -v pbcopy >/dev/null; then pbcopy; else xclip -selection clipboard; fi"
 description = "Copy current dir"
 
 # tmux timewarrior: b start / e stop / t weekly summary, tagged with the workspace name (tmux: #S)
