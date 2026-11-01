@@ -145,6 +145,24 @@ description = "Sync notes vault"
 width = "70%"
 height = "60%"
 
+# Capture a note into 0_inbox/ (nn: Templates/note, opens nvim in the popup). Empty title cancels.
+[[keys.command]]
+key = "prefix+c"
+type = "popup"
+command = "read -rp 'title> ' t && [ -n \"$t\" ] && ~/.local/bin/nn \"$t\""
+description = "Capture note"
+width = "80%"
+height = "70%"
+
+# File inbox notes interactively (sb-review: type, folder, save/discard/keep). Usable any time.
+[[keys.command]]
+key = "prefix+i"
+type = "popup"
+command = "~/.local/bin/sb-review; printf '\\n[press any key]'; read -rsn1 2>/dev/null || read -r _"
+description = "File inbox notes"
+width = "90%"
+height = "85%"
+
 # tmux: K key table -> kubernetes context picker; types ksetX + Enter into the focused pane
 [[keys.command]]
 key = "prefix+shift+k"
