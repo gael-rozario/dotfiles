@@ -1,0 +1,165 @@
+onboarding = false
+
+[ui]
+# tmux status-right: directory · time · cpu
+tab_bar_right = [
+  { type = "zoom" },
+  { type = "command", command = "basename \"${HERDR_ACTIVE_PANE_CWD:-$PWD}\"", interval_seconds = 2, timeout_seconds = 1 },
+  { type = "datetime", format = "%H:%M" },
+  { type = "command", command = "ps -A -o %cpu= | awk -v n=$(sysctl -n hw.ncpu) '{s+=$1} END {printf \"CPU %.0f%%\", s/n}'", interval_seconds = 5, timeout_seconds = 2 },
+]
+tab_bar_right_separator = " · "
+
+# New workspace asks for a name; a name you type stays fixed (no auto-renaming from cwd/branch)
+prompt_new_workspace_name = true
+
+[keys]
+# Prefix is ctrl+a (same as tmux) — clashes if herdr and tmux are nested.
+prefix = "ctrl+a"
+
+# --- Ported from ~/.tmux.conf ---
+split_vertical = "prefix+|"         # tmux: bind | split-window -h
+split_horizontal = "prefix+minus"   # tmux: bind - split-window -v (herdr default)
+zoom = "prefix+z"                   # tmux: bind z resize-pane -Z (herdr default)
+close_workspace = "prefix+shift+d"  # tmux: bind D kill-session (herdr default)
+reload_config = "prefix+r"          # tmux: bind r source-file
+workspace_picker = "prefix+w"       # herdr default
+
+# tmux: bind -r h/j/k/l resize-pane 5
+resize_pane_left = "prefix+h"
+resize_pane_down = "prefix+j"
+resize_pane_up = "prefix+k"
+resize_pane_right = "prefix+l"
+
+# Free hjkl for the vim-navigator plugin (vim-tmux-navigator equivalent).
+focus_pane_left = ""
+focus_pane_down = ""
+focus_pane_up = ""
+focus_pane_right = ""
+
+# --- herdr defaults moved off keys taken by the tmux ports ---
+resize_mode = "prefix+ctrl+r"              # was prefix+r
+toggle_sidebar = "prefix+shift+b"          # was prefix+b (timew start)
+edit_scrollback = "prefix+["               # was prefix+e (timew stop); [ like tmux copy-mode
+goto = "prefix+o"                          # was prefix+g (open GitHub); o like tmux sessionx
+new_workspace = "prefix+shift+n"            # herdr default; asks for a name (see [ui])
+next_tab = "prefix+ctrl+n"                  # was prefix+n (taken by new-worktree popup)
+rename_tab = "prefix+ctrl+t"                # was prefix+shift+t (timew weekly totals)
+open_notification_target = "prefix+ctrl+o"  # was prefix+o (taken by goto)
+
+# Vim-aware pane navigation: ctrl+hjkl moves between nvim splits and herdr panes.
+# Plugin: github.com/bojackduy/nvim-herdr-navigation (herdr-vim-navigator)
+[[keys.command]]
+key = "ctrl+h"
+type = "plugin_action"
+command = "local.vim-navigator.left"
+description = "Vim-aware pane left"
+
+[[keys.command]]
+key = "ctrl+j"
+type = "plugin_action"
+command = "local.vim-navigator.down"
+description = "Vim-aware pane down"
+
+[[keys.command]]
+key = "ctrl+k"
+type = "plugin_action"
+command = "local.vim-navigator.up"
+description = "Vim-aware pane up"
+
+[[keys.command]]
+key = "ctrl+l"
+type = "plugin_action"
+command = "local.vim-navigator.right"
+description = "Vim-aware pane right"
+
+# Clone bare: prompt for a GridX repo name -> bare clone into ~/workspace/github.com/gridx/<repo>.nvim
+# (with origin/* tracking), add the default-branch worktree and a shell tab in it to the current workspace.
+[[keys.command]]
+key = "prefix+f"
+type = "popup"
+command = "~/.config/herdr/scripts/clone-bare.sh"
+description = "Clone GridX bare repo (<repo>.nvim) + default-branch worktree (shell tab)"
+width = "60%"
+height = "50%"
+
+# tmux: bind R rename-window "#{b:pane_current_path}"
+[[keys.command]]
+key = "prefix+shift+r"
+type = "shell"
+command = "\"$HERDR_BIN_PATH\" tab rename \"$HERDR_ACTIVE_TAB_ID\" \"$(basename \"${HERDR_ACTIVE_PANE_CWD:-$PWD}\")\""
+description = "Rename tab to current dir"
+
+# tmux: bind g open https://github.com/GridX/<window name>
+# Uses the git repo root name (falls back to the current dir name).
+[[keys.command]]
+key = "prefix+g"
+type = "shell"
+command = "cd \"${HERDR_ACTIVE_PANE_CWD:-$PWD}\"; open \"https://github.com/GridX/$(basename \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\")\""
+description = "Open GitHub repo"
+
+# Copy the active pane's working directory to the macOS clipboard (no trailing newline).
+[[keys.command]]
+key = "prefix+y"
+type = "shell"
+command = "printf '%s' \"${HERDR_ACTIVE_PANE_CWD:-$PWD}\" | pbcopy"
+description = "Copy current dir"
+
+# tmux timewarrior: b start / e stop / t weekly summary, tagged with the workspace name (tmux: #S)
+[[keys.command]]
+key = "prefix+b"
+type = "shell"
+command = "timew start \"$(\"$HERDR_BIN_PATH\" workspace get \"$HERDR_ACTIVE_WORKSPACE_ID\" | jq -r .result.workspace.label)\""
+description = "timew start <workspace>"
+
+[[keys.command]]
+key = "prefix+e"
+type = "shell"
+command = "timew stop \"$(\"$HERDR_BIN_PATH\" workspace get \"$HERDR_ACTIVE_WORKSPACE_ID\" | jq -r .result.workspace.label)\""
+description = "timew stop <workspace>"
+
+[[keys.command]]
+key = "prefix+t"
+type = "popup"
+command = "timew totals :today; printf '\\n[press any key]'; read -rsn1 2>/dev/null || read -r _"
+description = "timew daily totals per tag"
+width = "80%"
+height = "60%"
+
+[[keys.command]]
+key = "prefix+shift+t"
+type = "popup"
+command = "timew totals :week; printf '\\n[press any key]'; read -rsn1 2>/dev/null || read -r _"
+description = "timew weekly totals per tag"
+width = "80%"
+height = "60%"
+
+# tmux: K key table -> kubernetes context picker; types ksetX + Enter into the focused pane
+[[keys.command]]
+key = "prefix+shift+k"
+type = "popup"
+command = "c=$(printf '%s\\n' 'm  ksetm' 'p  ksetp' 'd  ksetd' 'u  ksetu' 'o  kseto' 'g  ksetpseg' 'i  kseti' 'q  ksetq' | fzf --no-sort --prompt='kube> ' --bind 'm:pos(1)+accept,p:pos(2)+accept,d:pos(3)+accept,u:pos(4)+accept,o:pos(5)+accept,g:pos(6)+accept,i:pos(7)+accept,q:pos(8)+accept' | awk '{print $2}') && [ -n \"$c\" ] && \"$HERDR_BIN_PATH\" pane run \"$HERDR_ACTIVE_PANE_ID\" \"$c\""
+description = "Kubernetes context (m/p/d/u/o/g/i/q)"
+width = 40
+height = 12
+
+# New worktree: fzf bare repo under ~/workspace/github.com/gridx -> fzf type -> work-name (optional) -> source
+# (default: default branch). Creates <type>/<workspace>[-<work-name>] under the repo root and adds a shell tab
+# in the new worktree to the current workspace.
+# The old dir/branch/source prompt is still in scripts/new-worktree.sh (unbound).
+[[keys.command]]
+key = "prefix+n"
+type = "popup"
+command = "~/.config/herdr/scripts/new-wt.sh"
+description = "New worktree: repo / type / work-name / source (shell tab in the worktree)"
+width = "60%"
+height = "50%"
+
+# tmux: sessionx with zoxide -> pick an existing workspace or any zoxide dir (creates a workspace)
+[[keys.command]]
+key = "prefix+shift+s"
+type = "popup"
+command = "~/.config/herdr/scripts/zoxide-workspace.sh"
+description = "Workspace picker (workspaces + zoxide)"
+width = "75%"
+height = "86%"

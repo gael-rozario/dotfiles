@@ -1,0 +1,32 @@
+id = "local.tab-renumber"
+name = "Tab Renumber"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Keep \"<n>:<name>\" tab labels matching their position when tabs are created, closed or moved."
+platforms = ["linux", "macos"]
+
+[[events]]
+on = "tab.created"
+command = ["/bin/bash", "renumber-tabs.sh"]
+
+[[events]]
+on = "tab.closed"
+command = ["/bin/bash", "renumber-tabs.sh"]
+
+[[events]]
+on = "tab.moved"
+command = ["/bin/bash", "renumber-tabs.sh"]
+
+# Typing `exit` in a tab's last shell removes the tab without a tab.closed event.
+[[events]]
+on = "pane.exited"
+command = ["/bin/bash", "renumber-tabs.sh"]
+
+[[events]]
+on = "pane.closed"
+command = ["/bin/bash", "renumber-tabs.sh"]
+
+# Catch-all: another tab is always focused after one goes away.
+[[events]]
+on = "tab.focused"
+command = ["/bin/bash", "renumber-tabs.sh"]
