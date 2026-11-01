@@ -9,7 +9,9 @@ DOT=${DOTFILES:-$HOME/.dotfiles}
 REAL=${REAL_VAULT:-$HOME/gbrain/second-brain}
 rc=0; err() { echo "  $*" >&2; rc=1; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-mkvault() { git clone -q "$REAL" "$1" && git -C "$1" apply "$DOT/docs/superpowers/plans/vault-templates.patch"; }
+PATCH=$DOT/docs/superpowers/plans/vault-templates.patch
+# apply the template patch unless the vault already has it (Gael applied it in 125e943)
+mkvault() { git clone -q "$REAL" "$1" && { git -C "$1" apply --reverse --check "$PATCH" 2>/dev/null || git -C "$1" apply "$PATCH"; }; }
 A="$tmp/vault a"; B="$tmp/vault b"; mkvault "$A"; mkvault "$B"
 titles=("Go slice copy" 'a/b|c\d' $'tab\ttitle' '#hash' 'café')
 printf '%s\0' "${titles[@]}" > "$tmp/titles"
