@@ -1,0 +1,40 @@
+diff --git a/Templates/habittemplate b/Templates/habittemplate
+index 65333ed..144c471 100644
+--- a/Templates/habittemplate
++++ b/Templates/habittemplate
+@@ -1,11 +1,9 @@
+ ---
+-date: {{date}}
+-tags:
+-    - habit-tracker
++type: DailyLog
++description: Habit tracker.
++timestamp: '{{date}}T00:00:00Z'
+ hubs:
+-    - "[[habit-tracker]]"
+-urls:
+-    -
++- '[[habit-tracker]]'
+ ---
+ 
+ # {{title}}
+diff --git a/Templates/logtemplate b/Templates/logtemplate
+index 55f973c..5dbe535 100644
+--- a/Templates/logtemplate
++++ b/Templates/logtemplate
+@@ -1,11 +1,9 @@
+ ---
+-date: {{date}}
+-tags:
+-    - log
++type: DailyLog
++description: Daily log.
++timestamp: '{{date}}T00:00:00Z'
+ hubs:
+-    - "[[log]]"
+-urls:
+-    -
++- '[[log]]'
+ ---
+ 
+ # {{title}}
