@@ -1,9 +1,9 @@
 -- Note capture for the second-brain vault, kept byte-identical with `nn`.
 --
--- `:Obsidian new <arg>` treats its argument as an id *or path*, so a "/" in a
--- title would create a subfolder. This module builds the note itself instead:
--- the filename is nn's slug and {{title}} is the raw title, so both entry
--- points produce the same file.
+-- The note is rendered here, exactly like nn's two seds, not via obsidian.nvim:
+-- its Note.create parses the id as a path ("/" makes a subdir, ".md" is cut
+-- out of the middle of titles) and its template engine prompts for unknown
+-- {{vars}}. Filename = nn's slug; {{title}} = raw title, then {{date}}.
 local M = {}
 
 M.vault = vim.fs.normalize(os.getenv("SB_VAULT") or "~/gbrain/second-brain")
@@ -26,15 +26,16 @@ function M.new_inbox_note(title, opts)
   end
   local path = M.vault .. "/0_inbox/" .. slug .. ".md"
   if vim.uv.fs_stat(path) == nil then
-    local note = require("obsidian.note").create({
-      id = slug,
-      title = title,
-      dir = M.vault .. "/0_inbox",
-      template = "note",
-      verbatim = true,
-      check_invalid_filename = false,
-    })
-    note:write()
+    local tf = assert(io.open(M.vault .. "/Templates/note", "rb"))
+    local text = tf:read("a")
+    tf:close()
+    -- function replacements keep "%" literal; same order as nn's sed
+    text = text:gsub("{{title}}", function() return title end)
+    text = text:gsub("{{date}}", function() return os.date("%Y-%m-%d") end)
+    vim.fn.mkdir(M.vault .. "/0_inbox", "p")
+    local f = assert(io.open(path, "wb"))
+    f:write(text)
+    f:close()
   end
   if opts.open then
     vim.cmd.edit(vim.fn.fnameescape(path))

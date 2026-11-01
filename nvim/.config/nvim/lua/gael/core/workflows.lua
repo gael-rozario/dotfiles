@@ -1,12 +1,10 @@
--- convert note to template and remove leading white space
-vim.keymap.set("n", "<leader>nt", ":ObsidianTemplate note<cr> :lua vim.cmd([[1,/^\\S/s/^\\n\\{1,}//]])<cr>")
-vim.keymap.set("n", "<leader>nlt", ":ObsidianTemplate logtemplate<cr> :lua vim.cmd([[1,/^\\S/s/^\\n\\{1,}//]])<cr>")
-vim.keymap.set("n", "<leader>nht", ":ObsidianTemplate habittemplate<cr> :lua vim.cmd([[1,/^\\S/s/^\\n\\{1,}//]])<cr>")
+-- insert a vault template into the current note and remove leading blank lines
+-- (obsidian.nvim community fork: `:Obsidian template <name>`, legacy commands are off)
+vim.keymap.set("n", "<leader>nt", ":Obsidian template note<cr> :lua vim.cmd([[1,/^\\S/s/^\\n\\{1,}//]])<cr>")
+vim.keymap.set("n", "<leader>nlt", ":Obsidian template logtemplate<cr> :lua vim.cmd([[1,/^\\S/s/^\\n\\{1,}//]])<cr>")
+vim.keymap.set("n", "<leader>nht", ":Obsidian template habittemplate<cr> :lua vim.cmd([[1,/^\\S/s/^\\n\\{1,}//]])<cr>")
 
--- strip date from note title and replace dashes with spaces
--- must have cursor on title
--- vim.keymap.set("n", "<leader>nf", ":s/\\(# \\)[^_]*_/\\1/ | s/-/ /g<cr>")
-vim.keymap.set("n", "<leader>nf", ":%s/\\%<16l\\v(# )\\d{4}-\\d{2}-\\d{2}[-_]/\\1/<cr>")
+-- (old <leader>nf "strip date prefix from title" removed: notes are no longer
+-- date-prefixed; <leader>nf is now "find note", see plugins/obsidian.lua)
 vim.keymap.set("n", "<leader>ok", ":!mv '%:p' ~/second-brain/zettelkasten<cr>:bd<cr>")
 vim.keymap.set("n", "<leader>odd", ":!rm '%:p'<cr>:bd<cr>")
-

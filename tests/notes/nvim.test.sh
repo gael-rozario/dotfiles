@@ -3,7 +3,7 @@
 #  title_parity        — <leader>nn's entrypoint makes the same path+bytes as `nn`
 #  daily               — today's daily note lands in 2_areas/log and passes sb-lint
 #  no_plugin_frontmatter — saving a note through nvim leaves its bytes unchanged
-#  mappings            — <leader>nn/nd/nf/nb exist
+#  mappings            — our <leader>n* maps win; template maps call existing commands
 set -uo pipefail
 DOT=${DOTFILES:-$HOME/.dotfiles}
 REAL=${REAL_VAULT:-$HOME/gbrain/second-brain}
@@ -13,7 +13,7 @@ PATCH=$DOT/docs/superpowers/plans/vault-templates.patch
 # apply the template patch unless the vault already has it (Gael applied it in 125e943)
 mkvault() { git clone -q "$REAL" "$1" && { git -C "$1" apply --reverse --check "$PATCH" 2>/dev/null || git -C "$1" apply "$PATCH"; }; }
 A="$tmp/vault a"; B="$tmp/vault b"; mkvault "$A"; mkvault "$B"
-titles=("Go slice copy" 'a/b|c\d' $'tab\ttitle' '#hash' 'café')
+titles=("Go slice copy" 'a/b|c\d' $'tab\ttitle' '#hash' 'café' 'README.md conventions' 'foo.md' 'x {{id}} y' 'v1.2 50% & co')
 printf '%s\0' "${titles[@]}" > "$tmp/titles"
 # nn opens nvim at the end; stub it so nn only writes the file
 mkdir -p "$tmp/stub"; printf '#!/bin/sh\nexit 0\n' > "$tmp/stub/nvim"; chmod +x "$tmp/stub/nvim"
@@ -39,5 +39,12 @@ if [[ -f $n ]]; then
 fi
 # link_style: body links are root-relative markdown links (vault convention)
 SB_VAULT="$B" timeout 60 nvim --headless -c 'lua local s=require("obsidian.api").format_link({label="bigO",path=require("gael.notes").vault.."/3_resources/fact/bigO.md",style=Obsidian.opts.link.style,format=Obsidian.opts.link.format}); if s~="[bigO](/3_resources/fact/bigO.md)" then io.stderr:write("got "..s.."\n") os.exit(1) end' -c 'qa!' 2>"$tmp/link" || { err "link_style:"; sed 's/^/    /' "$tmp/link" >&2; }
-SB_VAULT="$B" timeout 60 nvim --headless -c 'lua for _,k in ipairs({"nn","nd","nf","nb"}) do if vim.fn.maparg("<leader>"..k,"n")=="" then io.stderr:write("missing <leader>"..k.."\n") os.exit(1) end end' -c 'qa!' 2>"$tmp/maps" || { err "mappings:"; sed 's/^/    /' "$tmp/maps" >&2; }
+# mappings: ours win (desc check, not just "something is mapped"), and the
+# template maps from core/workflows.lua call a command that still exists
+SB_VAULT="$B" timeout 60 nvim --headless -c 'lua local bad=0
+for k,d in pairs({nn="Notes: new inbox note",nd="Notes: today'"'"'s daily note",nf="Notes: find note",nb="Notes: backlinks"}) do
+  local m=vim.fn.maparg("<leader>"..k,"n",false,true); if (m.desc or "")~=d then io.stderr:write("<leader>"..k.." desc="..tostring(m.desc).."\n") bad=1 end end
+for _,k in ipairs({"nt","nlt","nht"}) do local r=vim.fn.maparg("<leader>"..k,"n")
+  local c=r:match(":(%a+)") if r=="" or (c and vim.fn.exists(":"..c)~=2) then io.stderr:write("<leader>"..k.." -> missing command "..tostring(c).."\n") bad=1 end end
+if bad==1 then os.exit(1) end' -c 'qa!' 2>"$tmp/maps" || { err "mappings:"; sed 's/^/    /' "$tmp/maps" >&2; }
 exit $rc

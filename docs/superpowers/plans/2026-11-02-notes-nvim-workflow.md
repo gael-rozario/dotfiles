@@ -24,7 +24,7 @@
 - **Note filenames:** the title, with each space, `/`, `|` and `\` replaced by `-`. No other changes and no date prefix. This must match `nn` (`tr ' /|\\' '----'`) and okf-mcp `_slug` exactly.
 - **`sb-review` behaviour is unchanged.** Only its location (stow) and its new keybind change.
 - **Keys:**
-  - herdr `prefix+c` = capture, `prefix+i` = filing. Both are currently unbound.
+  - herdr `prefix+shift+c` = capture (final review: `prefix+c` is herdr's built-in new_tab), `prefix+i` = filing.
   - nvim `<leader>nn` new note, `<leader>nd` daily note, `<leader>nf` find note, `<leader>nb` backlinks.
 - **Commits** end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Never push.
 

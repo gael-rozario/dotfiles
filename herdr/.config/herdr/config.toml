@@ -146,8 +146,9 @@ width = "70%"
 height = "60%"
 
 # Capture a note into 0_inbox/ (nn: Templates/note, opens nvim in the popup). Empty title cancels.
+# prefix+shift+c, not prefix+c: that is herdr's built-in new_tab (tmux habit).
 [[keys.command]]
-key = "prefix+c"
+key = "prefix+shift+c"
 type = "popup"
 command = "read -rp 'title> ' t && [ -n \"$t\" ] && ~/.local/bin/nn \"$t\""
 description = "Capture note"
