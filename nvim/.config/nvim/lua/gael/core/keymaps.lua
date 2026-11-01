@@ -83,3 +83,22 @@ keymap.set("n", "<leader>gd", function()
     vim.cmd("windo diffthis")
   end
 end, { desc = "Toggle diff all windows" })
+
+-- current buffer path, with the oil:// prefix stripped in oil buffers
+local function buf_path()
+  return (vim.api.nvim_buf_get_name(0):gsub("^oil://", ""))
+end
+
+-- copy absolute file path to the system clipboard
+keymap.set("n", "<leader>cp", function()
+  local path = vim.fn.fnamemodify(buf_path(), ":p")
+  vim.fn.setreg("+", path)
+  print("Copied absolute path: " .. path)
+end, { desc = "Copy absolute file path" })
+
+-- copy file path relative to cwd to the system clipboard
+keymap.set("n", "<leader>cr", function()
+  local path = vim.fn.fnamemodify(buf_path(), ":.")
+  vim.fn.setreg("+", path)
+  print("Copied relative path: " .. path)
+end, { desc = "Copy relative file path" })
