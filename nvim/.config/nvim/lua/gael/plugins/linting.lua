@@ -12,6 +12,8 @@ return {
 			svelte = { "eslint_d" },
 			python = { "pylint" },
 			["yaml.github"] = { "actionlint" },
+			terraform = { "terraform_validate" },
+			hcl = { "terraform_validate" },
 		}
 
 		vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
@@ -22,6 +24,12 @@ return {
 				end
 			end,
 		})
+
+		-- Use pylint from the nvim venv when present, so it shares pyright's Python env
+		local venv_pylint = vim.env.HOME .. "/venv/nvim/bin/pylint"
+		if vim.fn.executable(venv_pylint) == 1 then
+			lint.linters.pylint.cmd = venv_pylint
+		end
 
 		local lint_augroup = vim.api.nvim_create_augroup("lint", { clear = true })
 
