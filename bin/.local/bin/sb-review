@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # sb-review — interactive inbox review for the second-brain vault (OKF/PARA).
 # Walks 0_inbox/, previews each note, asks save/discard/keep/edit, and files
-# saved notes: type from index.md's note types (asked if unset), folder
-# suggested from where notes of that type/hubs already live.
+# saved notes: type from index.md's note types (asked if unset; typing a new
+# PascalCase name plus a one-line description adds it to index.md's type
+# table), folder suggested from where notes of that type/hubs already live.
 # Discards go to .trash/ (reversible). Filing regenerates the affected
 # index.md files via sb-index.
 # Vault: $SB_VAULT (default: ~/gbrain/second-brain)
@@ -27,6 +28,7 @@ declare -A TYPE_DESC=()
 # (second-brain vs third-brain) use different ones. Types carry no
 # destination — where a note is filed decides its PARA category.
 load_types() {
+  TYPE_LIST=(); TYPE_DESC=()
   local idx="$VAULT/index.md" found=0 line c
   local -a header=() cells=() trimmed=()
   [[ -f $idx ]] || { echo "${0##*/}: $idx not found" >&2; exit 1; }
@@ -105,23 +107,59 @@ note_hubs() { # note_hubs <file> — one hub name per line
     | grep -o '\[\[[^]]*\]\]' | sed 's/^\[\[//; s/\]\]$//' | grep -v '^$' || true
 }
 
-pick_type() { # pick_type <current> — prints the chosen type (menu from index.md)
-  local cur=$1 i ans t
+add_type() { # add_type <Name> <description> — append a row to index.md's type table
+  local idx="$VAULT/index.md"
+  awk -v name="$1" -v desc="$2" '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    { line[NR] = $0 }
+    !insec && tolower($0) ~ /^#+[ \t]*ingestion[ \t]+workflow/ { insec = 1; next }
+    insec && /^#/ { insec = 0; done = 1 }
+    insec && !done && trim($0) ~ /^\|.+\|$/ { last = NR }
+    END {
+      if (!last) { print "no type table under the Ingestion workflow heading" > "/dev/stderr"; exit 1 }
+      # pad each cell to the last row'"'"'s column widths
+      row = trim(line[last]); row = substr(row, 2, length(row) - 2)
+      n = split(row, w, "|")
+      c[1] = "`" name "`"; c[2] = desc
+      out = "|"
+      for (i = 1; i <= n; i++) { cell = " " c[i] " "; while (length(cell) < length(w[i])) cell = cell " "; out = out cell "|" }
+      for (i = 1; i <= NR; i++) { print line[i]; if (i == last) print out }
+    }' "$idx" > "$idx.tmp" && mv "$idx.tmp" "$idx"
+}
+
+pick_type() { # pick_type <current> — prints the chosen type (menu from index.md;
+              # a new PascalCase name creates that type after asking for its description)
+  local cur=$1 i ans t desc
   {
     [[ -n $cur ]] && echo "  type '$cur' is not in index.md's note types" || echo "  type not set"
     for i in "${!TYPE_LIST[@]}"; do
       printf '  %2d) %-14s %s\n' $((i+1)) "${TYPE_LIST[$i]}" "${TYPE_DESC[${TYPE_LIST[$i]}]}"
     done
+    echo "      or type a new PascalCase name to add it as a type"
   } >&2
   while true; do
-    read -rp "  type (number or name) > " ans || return 1
+    read -rp "  type (number, name or new name) > " ans || return 1
+    ans="${ans#"${ans%%[![:space:]]*}"}"; ans="${ans%"${ans##*[![:space:]]}"}"
     if [[ $ans =~ ^[0-9]+$ ]] && (( ans >= 1 && ans <= ${#TYPE_LIST[@]} )); then
       echo "${TYPE_LIST[$((ans-1))]}"; return
     fi
     for t in "${TYPE_LIST[@]}"; do
       [[ ${t,,} == "${ans,,}" ]] && { echo "$t"; return; }
     done
-    echo "  ? pick 1-${#TYPE_LIST[@]} or a type name" >&2
+    if [[ $ans =~ ^[A-Z][A-Za-z0-9]*$ ]]; then
+      read -rp "  new type '$ans' — what kind of content is it? (one line, empty to cancel) > " desc || return 1
+      desc="${desc#"${desc%%[![:space:]]*}"}"; desc="${desc%"${desc##*[![:space:]]}"}"
+      if [[ -z $desc ]]; then
+        echo "  cancelled — pick 1-${#TYPE_LIST[@]}, a type name, or a new name" >&2; continue
+      fi
+      if [[ $desc == *'|'* ]]; then
+        echo "  ? the description can't contain '|' (it becomes a table row)" >&2; continue
+      fi
+      add_type "$ans" "$desc" || return 1
+      echo "  added type '$ans' to index.md" >&2
+      echo "$ans"; return
+    fi
+    echo "  ? pick 1-${#TYPE_LIST[@]}, a type name, or a new PascalCase name (e.g. Recipe)" >&2
   done
 }
 
@@ -218,6 +256,7 @@ for f in "$INBOX"/*.md; do
         if [[ $(head -1 "$f") != --- ]]; then echo "  no frontmatter — [e]dit and add it first"; continue; fi
         type=$(pick_type "$(field "$f" type)") || continue
         set_type "$f" "$type"
+        load_types  # pick_type ran in a subshell; pick up a type it added
         continue ;;
       s)
         if [[ $(head -1 "$f") != --- ]]; then echo "  no frontmatter — [e]dit and add it first"; continue; fi
@@ -225,6 +264,7 @@ for f in "$INBOX"/*.md; do
         if [[ -z $type || -z ${TYPE_DESC[$type]+set} ]]; then
           type=$(pick_type "$type") || continue
           set_type "$f" "$type"
+          load_types  # pick_type ran in a subshell; pick up a type it added
         fi
         # type says what the note is; the folder it's filed in decides its
         # PARA category — suggested from where similar notes already live
