@@ -1,0 +1,253 @@
+#!/usr/bin/env bash
+# notes-sync — sync the laptop clone of the notes vault with GitHub.
+# Usage: notes-sync            (bound to herdr prefix+s)
+# Vault: $SB_VAULT (default: ~/gbrain/second-brain)
+#
+# Same rules as okf-mcp's Vault.sync (src/okf_mcp/vault_sync.py), except a
+# real conflict on a hand-written note is resolved by hand in nvim:
+#   1. rebase already in progress -> show `git status`, exit 1
+#   2. dirty tree -> commit everything as "sync: <N> file(s): <first 3>[, …]"
+#   3. fetch + rebase origin/main; conflicts: generated */index.md takes
+#      origin's side (stage :2 during a rebase); a text conflict anywhere
+#      else (including the hand-written root and 3_resources/ index.md)
+#      opens in nvim until no markers
+#      remain; a conflict git left without markers (binary) takes origin's
+#      side and keeps the local version (:3) as 0_inbox/<stem>.conflict<ext>,
+#      like okf-mcp; modify/delete -> exit 1 with the rebase left in progress
+#   4. sb-index --all; commit "sync: regenerate indexes" if anything changed
+#   5. sb-lint the changed .md files (warnings only)
+#   6. push; on a race rejection redo 3-5 (3 attempts in all, like okf-mcp);
+#      "[remote rejected]" (hook / protected branch) is never retried
+#   7. one summary line: notes-sync: ↑<ahead> ↓<pulled> ✓  (or ✗ <reason>)
+set -euo pipefail
+
+VAULT="${SB_VAULT:-$HOME/gbrain/second-brain}"
+export SB_VAULT="$VAULT"
+export PATH="$HOME/.local/bin:$PATH"   # sb-index / sb-lint, even from a bare popup shell
+export GIT_LITERAL_PATHSPECS=1         # note names may contain [ ] * ?
+INBOX=0_inbox
+UPSTREAM=origin/main
+PUSH_ATTEMPTS=3
+PARA_RE='^(0_inbox|1_projects|2_areas|3_resources|4_archive)/'
+
+finished=0
+fail() { # fail <reason> — print the failure summary and exit 1
+  finished=1
+  printf 'notes-sync: ✗ %s\n' "$1"
+  exit 1
+}
+on_exit() {
+  local rc=$?
+  if [[ $finished -eq 0 && $rc -ne 0 ]]; then
+    in_rebase 2>/dev/null && echo "notes-sync: a rebase is in progress (git status / git rebase --abort)"
+    printf 'notes-sync: ✗ unexpected error (exit %d)\n' "$rc"
+  fi
+}
+trap on_exit EXIT
+
+[[ -d $VAULT ]] || fail "vault not found: $VAULT"
+cd "$VAULT"
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "not a git repo: $VAULT"
+
+in_rebase() {
+  local name
+  for name in rebase-merge rebase-apply; do
+    [[ -e $(git rev-parse --git-path "$name") ]] && return 0
+  done
+  return 1
+}
+# The root index.md and 3_resources/index.md are hand-written (as in
+# sb-review and okf-mcp's is_generated).
+is_generated() { [[ $1 == */index.md && $1 != 3_resources/index.md ]]; }
+unmerged() { git diff --name-only --diff-filter=U; }
+has_markers() { grep -qE '^(<<<<<<<|>>>>>>>)' -- "$1"; }
+
+stages_of() { # stages_of <path> — e.g. "123", "13" (modify/delete), "23" (add/add)
+  git ls-files -u -z -- "$1" | tr '\0' '\n' | awk 'NF {print $3}' | sort -u | tr -d '\n'
+}
+
+# --- 1. never adopt someone else's rebase ---------------------------------
+if in_rebase; then
+  git status
+  fail "finish or abort the rebase first"
+fi
+
+branch=$(git symbolic-ref -q --short HEAD || true)
+[[ $branch == main ]] || fail "not on main (on ${branch:-detached HEAD})"
+
+# --- 2. commit a dirty tree -----------------------------------------------
+if [[ -n $(git status --porcelain) ]]; then
+  git add -A
+  mapfile -d '' -t changed < <(git diff --cached --name-only -z)
+  msg="sync: ${#changed[@]} file(s): "
+  for ((i = 0; i < ${#changed[@]} && i < 3; i++)); do
+    [[ $i -gt 0 ]] && msg+=", "
+    msg+=${changed[$i]}
+  done
+  [[ ${#changed[@]} -gt 3 ]] && msg+=", …"
+  git commit -q -m "$msg"
+  echo "notes-sync: committed ${#changed[@]} file(s)"
+fi
+start=$(git rev-parse HEAD)
+
+# --- 3. fetch + rebase, resolving conflicts -------------------------------
+resolve_conflicts() {
+  local -a paths=() manual=()
+  local path stages
+  mapfile -d '' -t paths < <(git diff --name-only -z --diff-filter=U)
+
+  # Modify/delete on a hand-written note has no markers to edit: stop
+  # before opening anything, with the rebase left for Gael.
+  local -a modify_delete=()
+  for path in "${paths[@]}"; do
+    is_generated "$path" && continue
+    stages=$(stages_of "$path")
+    [[ $stages == *2* && $stages == *3* ]] || modify_delete+=("$path")
+  done
+  if [[ ${#modify_delete[@]} -gt 0 ]]; then
+    echo "notes-sync: modify/delete conflict (one side deleted the file):"
+    printf '  %s\n' "${modify_delete[@]}"
+    echo "Resolve in $VAULT:"
+    echo "  keep it:   git add -- <path>     drop it: git rm -- <path>"
+    echo "  then:      GIT_EDITOR=true git rebase --continue   and rerun notes-sync"
+    echo "  or undo:   git rebase --abort"
+    fail "modify/delete conflict on ${modify_delete[0]}; rebase left in progress"
+  fi
+
+  for path in "${paths[@]}"; do
+    if is_generated "$path"; then
+      # Origin's side (:2 during a rebase); regenerated in step 4 anyway.
+      if [[ $(stages_of "$path") == *2* ]]; then
+        git checkout --ours -- "$path"
+        git add -- "$path"
+      else
+        git rm -q -f -- "$path"
+      fi
+      echo "notes-sync: $path: took origin's version (regenerated below)"
+    else
+      manual+=("$path")
+    fi
+  done
+
+  for path in "${manual[@]}"; do
+    if ! [[ -f $path ]] || ! has_markers "$path"; then
+      keep_local_copy "$path"
+      continue
+    fi
+    echo "notes-sync: conflict in $path, opening nvim"
+    nvim "$path" || fail "nvim exited non-zero on $path; rebase left in progress"
+    while [[ -f $path ]] && has_markers "$path"; do
+      echo "notes-sync: $path still has conflict markers, reopening (:cq in nvim to abort; the rebase stays in progress)"
+      nvim "$path" || fail "nvim exited non-zero on $path; rebase left in progress"
+    done
+    git add -A -- "$path"
+  done
+}
+
+# copy_target <path> — free 0_inbox/<stem>.conflict[-N]<ext> for a local copy
+copy_target() {
+  local base=${1##*/} stem ext dest n=2
+  if [[ $base == ?*.* ]]; then stem=${base%.*} ext=.${base##*.}; else stem=$base ext=; fi
+  dest="$INBOX/$stem.conflict$ext"
+  while [[ -e $dest ]]; do dest="$INBOX/$stem.conflict-$n$ext"; n=$((n + 1)); done
+  printf '%s' "$dest"
+}
+
+# keep_local_copy <path> — no markers to edit (binary): save stage :3 (the
+# local commit being replayed) to the inbox, take origin's side (:2), stage both.
+keep_local_copy() {
+  local path=$1 out tmp dest
+  out=$(git checkout-index --stage=3 --temp -- "$path") || fail "could not read your version of $path"
+  tmp=${out%%$'\t'*}
+  dest=$(copy_target "$path")
+  if ! mkdir -p "$INBOX" || ! mv -- "$tmp" "$dest"; then
+    rm -f -- "$tmp"
+    fail "could not save your version of $path; rebase left in progress"
+  fi
+  git checkout --ours -- "$path"
+  git add -- "$path" "$dest"
+  echo "notes-sync: $path: took origin's version, kept your version as $dest"
+}
+
+# rebase_step <rebase args...> — run a rebase step; succeed if the rebase is
+# finished or stopped on new conflicts (the loop resolves those).
+rebase_step() {
+  GIT_EDITOR=true git -c advice.mergeConflict=false rebase "$@" && return 0
+  in_rebase || return 1
+  [[ -n $(unmerged) ]]
+}
+
+rebase_onto_upstream() {
+  rebase_step "$UPSTREAM" || fail "git rebase $UPSTREAM failed"
+  while in_rebase; do
+    if [[ -n $(unmerged) ]]; then
+      resolve_conflicts
+      [[ -z $(unmerged) ]] || fail "unresolved paths remain; rebase left in progress"
+    fi
+    if git diff --cached --quiet; then
+      # Taking origin's side left nothing to replay (e.g. a local commit that
+      # only touched a generated index): drop it.
+      rebase_step --skip || fail "git rebase --skip failed; rebase left in progress"
+    else
+      rebase_step --continue || fail "git rebase --continue failed; rebase left in progress"
+    fi
+  done
+}
+
+# --- 4. regenerate indexes ------------------------------------------------
+regenerate() {
+  sb-index --all >/dev/null
+  if [[ -n $(git status --porcelain) ]]; then
+    git add -A
+    git commit -q -m "sync: regenerate indexes"
+  fi
+}
+
+# --- 5. lint what this sync is about to push ------------------------------
+lint_changed() {
+  local -a files=()
+  local path
+  while IFS= read -r -d '' path; do
+    [[ $path == *.md && $path =~ $PARA_RE ]] || continue
+    [[ ${path##*/} == index.md || ${path##*/} == log.md ]] && continue
+    files+=("$VAULT/$path")
+  done < <(git diff --name-only -z --diff-filter=ACMR "$UPSTREAM" HEAD)
+  [[ ${#files[@]} -gt 0 ]] || return 0
+  sb-lint "${files[@]}" || true
+}
+
+sync_once() {
+  git fetch -q origin || fail "git fetch failed"
+  rebase_onto_upstream
+  regenerate
+  lint_changed
+}
+
+# --- 6. push, re-syncing on a race -----------------------------------------
+pushed=0
+for ((attempt = 1; attempt <= PUSH_ATTEMPTS; attempt++)); do
+  sync_once
+  ahead=$(git rev-list --count "$UPSTREAM..HEAD")
+  pulled=$(git rev-list --count "$start..$UPSTREAM")
+  if [[ $ahead -eq 0 ]]; then
+    pushed=1
+    break
+  fi
+  if err=$(git push origin HEAD:main 2>&1); then
+    pushed=1
+    break
+  fi
+  printf '%s\n' "$err"
+  if [[ $err == *"[remote rejected]"* ]]; then
+    fail "push refused by remote (hook/protected branch); commit kept locally"
+  fi
+  if [[ $err != *"! [rejected]"* && $err != *"fetch first"* && $err != *"non-fast-forward"* ]]; then
+    fail "push failed; commit kept locally"
+  fi
+  echo "notes-sync: push rejected (origin moved), re-syncing"
+done
+[[ $pushed -eq 1 ]] || fail "push rejected $PUSH_ATTEMPTS times; commit kept locally"
+
+# --- 7. summary -------------------------------------------------------------
+finished=1
+printf 'notes-sync: ↑%s ↓%s ✓\n' "$ahead" "$pulled"

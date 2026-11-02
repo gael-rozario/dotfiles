@@ -1,0 +1,13 @@
+Note-vault scripts, stowed into ~/.local/bin with `stow --no-folding -d ~/.dotfiles -t ~ bin`
+(`--no-folding` keeps ~/.local/bin a real directory; other tools live there too).
+
+- nn          — capture a note into 0_inbox/ from Templates/note and open it in nvim.
+- sb-review   — interactive inbox filing: type, folder (ranked suggestions), save/discard/keep.
+- sb-lint     — validate notes against the vault's OKF conventions (types read live from index.md).
+- sb-index    — regenerate folder index.md files. MUST stay byte-identical with okf-mcp's
+                Python generator (okf-mcp/tests/test_index_parity.py), or laptop and server
+                rewrite each other's indexes on every sync.
+- sb-archive  — move a finished note to the same path under 4_archive/.
+- notes-sync  — manual laptop↔GitHub sync (herdr prefix+s); same conflict rules as okf-mcp.
+
+Vault: $SB_VAULT (default ~/gbrain/second-brain). Tests: ~/.dotfiles/tests/notes/run.sh.

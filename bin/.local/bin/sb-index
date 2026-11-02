@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# sb-index — regenerate index.md for second-brain concept directories (OKF).
+# Usage: sb-index <dir> [<dir>...]   (paths relative to vault root or absolute)
+#        sb-index --all              (all leaf dirs that contain concept notes)
+# Vault: $SB_VAULT (default: ~/gbrain/second-brain)
+set -euo pipefail
+# Byte-order collation: glob/sort/find order must not depend on the caller's
+# locale, or two machines (or okf-mcp's Python port) produce different indexes.
+export LC_ALL=C
+
+VAULT="${SB_VAULT:-$HOME/gbrain/second-brain}"
+[[ -d $VAULT ]] || { echo "sb-index: vault not found: $VAULT" >&2; exit 1; }
+
+heading_for() {
+  local base
+  base=$(basename "$1")
+  base=${base#[0-9]_}
+  base=${base//[-_]/ }
+  # Title Case each word
+  awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1' <<<"$base"
+}
+
+field() { # field <file> <key> — frontmatter value for key, folding YAML continuation lines and quotes
+  awk -v k="$2" '
+    function out() { q = substr(v, 1, 1)
+      if ((q == "\047" || q == "\"") && substr(v, length(v), 1) == q) {
+        v = substr(v, 2, length(v) - 2); if (q == "\047") gsub(/\047\047/, "\047", v) }
+      print v; exit }
+    /^---$/ { if (got) out(); c++; next }
+    c == 1 && got && /^[ \t]+[^ \t]/ { sub(/^[ \t]+/, ""); v = v " " $0; next }
+    c == 1 && got { out() }
+    c == 1 && $0 ~ "^"k": " { sub("^"k": ", ""); v = $0; got = 1; next }
+    c > 1 { exit }' "$1"
+}
+
+title_for() { # title_for <file.md> — readable title derived from the filename
+  # (titles aren't stored in frontmatter): '---' -> ' - ', '-'/'_' -> space,
+  # except hyphens between digits (2024-08-05, Step-0-2)
+  sed -E 's/---/ @@ /g; :a; s/([0-9])-([0-9])/\1@@\2/; ta; s/[-_]/ /g; s/@@/-/g; s/ +/ /g' <<<"${1%.md}"
+}
+
+subdir_desc() { # subdir_desc <dir> — single note's description, else note count
+  local n files=()
+  while IFS= read -r x; do files+=("$x"); done \
+    < <(find "$1" -type f -name '*.md' ! -name index.md ! -name log.md | sort)
+  n=${#files[@]}
+  if [[ $n -eq 1 ]]; then
+    local d; d=$(field "${files[0]}" description)
+    [[ -n $d ]] && { echo "$d"; return; }
+  fi
+  echo "$n note(s)."
+}
+
+gen_index() {
+  local dir=$1 out entries=0
+  out="$dir/index.md"
+  {
+    echo "# $(heading_for "$dir")"
+    echo
+    for sub in "$dir"/*/; do
+      [[ -d $sub ]] || continue
+      local sname; sname=$(basename "$sub")
+      [[ $sname == .* || $sname == Templates || $sname == Excalidraw ]] && continue
+      find "$sub" -type f -name '*.md' ! -name index.md ! -name log.md | grep -q . || continue
+      echo "* [$sname/]($sname/) - $(subdir_desc "$sub")"
+      entries=$((entries+1))
+    done
+    for f in "$dir"/*.md; do
+      [[ -e $f ]] || continue
+      local name; name=$(basename "$f")
+      [[ $name == index.md || $name == log.md ]] && continue
+      local desc type
+      desc=$(field "$f" description); type=$(field "$f" type)
+      [[ -n $desc ]] || desc="(no description)"
+      echo "* [$(title_for "$name")]($name)${type:+ · $type} — $desc"
+      entries=$((entries+1))
+    done
+    if [[ $entries -eq 0 ]]; then
+      if [[ $(basename "$dir") == 0_inbox ]]; then
+        echo "Nothing currently unfiled."
+      else
+        echo "No notes here yet."
+      fi
+    fi
+  } > "$out.tmp"
+  mv "$out.tmp" "$out"
+  echo "sb-index: wrote $out ($entries entries)"
+}
+
+if [[ ${1:-} == --all ]]; then
+  # every dir under the PARA folders that directly contains concept .md files
+  mapfile -t dirs < <(find "$VAULT/0_inbox" "$VAULT/1_projects" "$VAULT/2_areas" "$VAULT/3_resources" "$VAULT/4_archive" \
+      -type f -name '*.md' ! -name index.md ! -name log.md -printf '%h\n' 2>/dev/null | sort -u)
+  # inbox always gets (re)generated, even when empty (else a stale index survives)
+  printf '%s\n' "${dirs[@]}" | grep -qxF "$VAULT/0_inbox" || dirs+=("$VAULT/0_inbox")
+  mkdir -p "$VAULT/0_inbox"   # git drops empty dirs
+  for d in "${dirs[@]}"; do gen_index "$d"; done
+else
+  [[ $# -ge 1 ]] || { echo "usage: sb-index --all | <dir> [<dir>...]" >&2; exit 2; }
+  for d in "$@"; do
+    [[ $d = /* ]] || d="$VAULT/$d"
+    [[ -d $d ]] || { echo "sb-index: no such dir: $d" >&2; exit 1; }
+    gen_index "$d"
+  done
+fi
